@@ -223,6 +223,7 @@ int createAuthHeaderMD5(char * user, char * password, int password_len, char * m
     static unsigned int mync = 1;
     int has_opaque = 0;
     MD5_CTX Md5Ctx;
+    char tmpbuf[2048];
 
     // Extract the Auth Type - If not present, using 'none' 
     cnonce[0] = '\0';
@@ -254,7 +255,8 @@ int createAuthHeaderMD5(char * user, char * password, int password_len, char * m
 
     sprintf(result, "Digest username=\"%s\",realm=\"%s\"",user,tmp);
     if (cnonce[0] != '\0') {
-        sprintf(result, "%s,cnonce=\"%s\",nc=%s,qop=%s",result,cnonce,nc,authtype);
+        snprintf(tmpbuf, 2048, ",cnonce=\"%s\",nc=%s,qop=%s",cnonce,nc,authtype);
+        strcat(result,tmpbuf);
     }
 
     // Construct the URI 
@@ -284,7 +286,8 @@ int createAuthHeaderMD5(char * user, char * password, int password_len, char * m
     MD5_Final(ha2, &Md5Ctx);
     hashToHex(&ha2[0], &ha2_hex[0]);
 
-    sprintf(result, "%s,uri=\"%s\"",result,tmp);
+    snprintf(tmpbuf, 2048, ",uri=\"%s\"",tmp);
+    strcat(result,tmpbuf);
 
     // Extract the Nonce 
     if (!getAuthParameter("nonce", auth, tmp, sizeof(tmp))) {
@@ -309,10 +312,12 @@ int createAuthHeaderMD5(char * user, char * password, int password_len, char * m
     MD5_Final(resp, &Md5Ctx);
     hashToHex(&resp[0], &resp_hex[0]);
 
-    sprintf(result, "%s,nonce=\"%s\",response=\"%s\",algorithm=%s",result,tmp,resp_hex,algo);
+    snprintf(tmpbuf, 2048, ",nonce=\"%s\",response=\"%s\",algorithm=%s",tmp,resp_hex,algo);
+    strcat(result,tmpbuf);
 
     if (has_opaque) {
-        sprintf(result, "%s,opaque=\"%s\"",result,opaque);
+        snprintf(tmpbuf, 2048, ",opaque=\"%s\"",opaque);
+        strcat(result,tmpbuf);
     }
 
     return 1;

@@ -62,17 +62,18 @@ extern "C" {
 }
 #endif
 
-struct txnInstanceInfo {
+typedef struct {
     char *txnID;
     unsigned long txnResp;
     int ackIndex;
-};
+}txnInstanceInfo;
 
 class call : virtual public task, virtual public listener, public virtual socketowner
 {
 public:
     /* These are wrappers for various circumstances, (private) init does the real work. */
     //call(char * p_id, int userId, bool ipv6, bool isAutomatic);
+    unsigned int get_tdm_map_number();
     call(const char *p_id, bool use_ipv6, int userId, struct sockaddr_storage *dest);
     call(const char *p_id, struct sipp_socket *socket, struct sockaddr_storage *dest);
     static call *add_call(int userId, bool ipv6, struct sockaddr_storage *dest);
@@ -97,14 +98,14 @@ public:
     virtual void dump();
 
     /* Automatic */
-    enum T_AutoMode {
+    typedef enum class  {
         E_AM_DEFAULT,
         E_AM_UNEXP_BYE,
         E_AM_UNEXP_CANCEL,
         E_AM_PING,
         E_AM_AA,
         E_AM_OOCALL,
-    };
+    }T_AutoMode;
 
     void setLastMsg(const char *msg);
     bool  automaticResponseMode(T_AutoMode P_case, char* P_recv);
@@ -217,14 +218,14 @@ private:
     struct txnInstanceInfo *transactions;
 
     /* result of execute action */
-    enum T_ActionResult {
+    typedef enum class  {
         E_AR_NO_ERROR = 0,
         E_AR_REGEXP_DOESNT_MATCH,
         E_AR_REGEXP_SHOULDNT_MATCH,
         E_AR_STOP_CALL,
         E_AR_CONNECT_FAILED,
         E_AR_HDR_NOT_FOUND
-    };
+    }T_ActionResult;
 
     /* Store the last action result to allow  */
     /* call to continue and mark it as failed */

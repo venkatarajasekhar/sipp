@@ -45,13 +45,15 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <assert.h>
+#include <new>
+#include<stdio>
 
 #ifdef PCAPPLAY
 #include "send_packets.h"
 #endif
 #include "sipp.hpp"
 #include "deadcall.hpp"
-
+using namespace std;
 #define callDebug(args...) do { if (useCallDebugf) { _callDebug( args ); } } while (0)
 
 #ifdef _USE_OPENSSL
@@ -74,7 +76,7 @@ int call::stepDynamicId   = 4;                // FIXME both param to be in comma
 /************** Call map and management routines **************/
 static unsigned int next_number = 1;
 
-unsigned int get_tdm_map_number()
+unsigned int call::get_tdm_map_number()
 {
     unsigned int nb = 0;
     unsigned int i=0;
@@ -250,6 +252,7 @@ uint16_t get_remote_port_media(const char *msg, int pattype)
 void call::get_remote_media_addr(char *msg)
 {
     uint16_t video_port, audio_port;
+    if(msg){
     if (media_ip_is_ipv6) {
         struct in6_addr ip_media;
         if (get_remote_ipv6_media(msg, &ip_media)) {
@@ -295,7 +298,8 @@ void call::get_remote_media_addr(char *msg)
         }
     }
 }
-
+return NULL;
+}
 #endif
 
 /******* Very simple hash for retransmission detection  *******/
@@ -304,7 +308,7 @@ unsigned long call::hash(const char * msg)
 {
     unsigned long hash = 0;
     int c;
-
+    if(msg){ 
     if (rtcheck == RTCHECK_FULL) {
         while ((c = *msg++))
             hash = c + (hash << 6) + (hash << 16) - hash;
@@ -344,21 +348,35 @@ unsigned long call::hash(const char * msg)
 
     return hash;
 }
+  return NULL;
+}
 
 /******************* Call class implementation ****************/
 call::call(const char *p_id, bool use_ipv6, int userId, struct sockaddr_storage *dest) : listener(p_id, true)
 {
+    try{
     init(main_scenario, NULL, dest, p_id, userId, use_ipv6, false, false);
+    }catch(...){
+        
+    }
 }
 
 call::call(const char *p_id, struct sipp_socket *socket, struct sockaddr_storage *dest) : listener(p_id, true)
 {
+    try{
     init(main_scenario, socket, dest, p_id, 0 /* No User. */, socket->ss_ipv6, false /* Not Auto. */, false);
+    }catch(...){
+     ERROR("Internal error: API init()\n");
+    }
 }
 
 call::call(scenario * call_scenario, struct sipp_socket *socket, struct sockaddr_storage *dest, const char * p_id, int userId, bool ipv6, bool isAutomatic, bool isInitialization) : listener(p_id, true)
 {
+    try{
     init(call_scenario, socket, dest, p_id, userId, ipv6, isAutomatic, isInitialization);
+    }catch(...){
+        ERROR("Internal error: API init()\n");
+    }
 }
 
 call *call::add_call(int userId, bool ipv6, struct sockaddr_storage *dest)
@@ -395,8 +413,12 @@ call *call::add_call(int userId, bool ipv6, struct sockaddr_storage *dest)
     }
     call_id[count] = 0;
 
-    return new call(main_scenario, NULL, dest, call_id, userId, ipv6, false /* Not Auto. */, false);
-}
+    return try{
+        new call(main_scenario, NULL, dest, call_id, userId, ipv6, false /* Not Auto. */, false);
+        }catch (std::bad_alloc& ba){
+         cerr << "bad_alloc caught: " << ba.what() << '\n';
+        }
+      }
 
 
 void call::init(scenario * call_scenario, struct sipp_socket *socket, struct sockaddr_storage *dest, const char * p_id, int userId, bool ipv6, bool isAutomatic, bool isInitCall)
@@ -478,7 +500,11 @@ void call::init(scenario * call_scenario, struct sipp_socket *socket, struct soc
             userVars  = it->second;
         }
     } else {
+        try{
         userVars = new VariableTable(userVariables);
+        }catch (std::bad_alloc& ba){
+        cerr << "bad_alloc caught: " << ba.what() << '\n';
+        }
         /* Creating this table creates a reference to it, but if it is really used,
          * then the refcount will be increased. */
         putUserVars = true;
@@ -678,6 +704,9 @@ call::~call()
     free(start_time_rtd);
     free(rtd_done);
     free(debugBuffer);
+    start_time_rtd = NULL;
+    rtd_done = NULL;
+    debugBuffer = NULL;
 }
 
 void call::computeStat (CStat::E_Action P_action)
@@ -820,8 +849,11 @@ bool call::connect_socket_if_needed()
         if (existing) {
             return true;
         }
-
+        try{  
         sipp_customize_socket(call_socket);
+        }catch(...){
+            ERROR_NO("Failed : API,sipp_customize_socket(call_socket);");
+        }
 
         if (use_remote_sending_addr) {
             L_dest = &remote_sending_sockaddr;
@@ -842,9 +874,16 @@ bool call::connect_socket_if_needed()
                 if (reset_number != -1) {
                     reset_number--;
                 }
-
+                try{
                 computeStat(CStat::E_CALL_FAILED);
-                computeStat(CStat::E_FAILED_TCP_CONNECT);
+                }catch(...){
+                  ERROR_NO("Failed : API,computeStat(CStat::E_CALL_FAILED);");  
+                }
+                try{
+                    computeStat(CStat::E_FAILED_TCP_CONNECT);
+                }catch(...){
+                ERROR_NO("Failed : API,computeStat(CStat::E_FAILED_TCP_CONNECT);");  
+                }
                 delete this;
 
                 return false;
@@ -976,7 +1015,7 @@ void call::sendBuffer(char * msg, int len)
         if (sendbuffer_warn) {
             ERROR_NO("Error sending raw message");
         } else {
-            WARNING_NO("Error sending raw message");
+            ERROR_NO("Error sending raw message");
         }
     }
 }
@@ -1050,7 +1089,7 @@ char * call::get_header(const char* message, const char * name, bool content)
 
     /* for safety's sake */
     if (NULL == name || NULL == strrchr(name, ':')) {
-        WARNING("Can not searching for header (no colon): %s", name ? name : "(null)");
+        ERROR("Can not searching for header (no colon): %s", name ? name : "(null)");
         return last_header;
     }
 
@@ -1163,6 +1202,7 @@ char * call::get_header(const char* message, const char * name, bool content)
     }
 
     free(src);
+    src = NULL;
     return start;
 }
 
@@ -1171,7 +1211,7 @@ char * call::get_first_line(const char * message)
     /* non reentrant. consider accepting char buffer as param */
     static char last_header[MAX_HEADER_LEN * 10];
     const char * src;
-
+    if(message){
     /* returns empty string in case of error */
     memset(last_header, 0, sizeof(last_header));
 
@@ -1194,7 +1234,8 @@ char * call::get_first_line(const char * message)
 
     return last_header;
 }
-
+return NULL;
+}
 /* Return the last request URI from the To header. On any error returns the
  * empty string.  The caller must free the result. */
 char * call::get_last_request_uri ()
@@ -1404,9 +1445,9 @@ void call::terminate(CStat::E_Action reason)
 
 bool call::next()
 {
-    msgvec * msgs = &call_scenario->messages;
+    msgvec * msgs = &(call_scenario->messages);
     if (initCall) {
-        msgs = &call_scenario->initmessages;
+        msgs = &(call_scenario->initmessages);
     }
 
     int test = (*msgs)[msg_index]->test;
@@ -1431,7 +1472,10 @@ bool call::next()
         return false;
     }
 
-    return run();
+    return try{
+        run();}catch(...){
+            
+        }
 }
 
 bool call::executeMessage(message *curmsg)
@@ -1660,7 +1704,7 @@ bool call::executeMessage(message *curmsg)
             setPaused();
         }
     } else {
-        WARNING("Unknown message type at %s:%d: %d", curmsg->desc, curmsg->index, curmsg->M_type);
+        ERROR("Unknown message type at %s:%d: %d", curmsg->desc, curmsg->index, curmsg->M_type);
     }
     return true;
 }
@@ -1677,13 +1721,18 @@ bool call::run()
     }
 
     getmilliseconds();
-
-    message *curmsg;
+    try{
+    message *curmsg = new message;
+    }catch(...){
+        ERROR("New Failed, allocation problem");
+    }
+    
     if (initCall) {
         if(msg_index >= (int)call_scenario->initmessages.size()) {
             ERROR("Scenario initialization overrun for call %s (%p) (index = %d)\n", id, this, msg_index);
         }
-        curmsg = call_scenario->initmessages[msg_index];
+        *curmsg = call_scenario->initmessages[msg_index];
+       
     } else {
         if(msg_index >= (int)call_scenario->messages.size()) {
             ERROR("Scenario overrun for call %s (%p) (index = %d)\n", id, this, msg_index);
@@ -1719,7 +1768,7 @@ bool call::run()
         if(nb_retrans > rtAllowed) {
             call_scenario->messages[last_send_index] -> nb_timeout ++;
             if (call_scenario->messages[last_send_index]->on_timeout >= 0) {  // action on timeout
-                WARNING("Call-Id: %s, timeout on max UDP retrans for message %d, jumping to label %d ",
+                ERROR("Call-Id: %s, timeout on max UDP retrans for message %d, jumping to label %d ",
                         id, msg_index, call_scenario->messages[last_send_index]->on_timeout);
                 msg_index = call_scenario->messages[last_send_index]->on_timeout;
                 next_retrans = 0;
@@ -1744,7 +1793,7 @@ bool call::run()
             computeStat(CStat::E_FAILED_MAX_UDP_RETRANS);
             if (default_behaviors & DEFAULT_BEHAVIOR_BYE) {
                 // Abort the call by sending proper SIP message
-                WARNING("Aborting call on UDP retransmission timeout for Call-ID '%s'", id);
+                ERROR("Aborting call on UDP retransmission timeout for Call-ID '%s'", id);
                 return(abortCall(true));
             } else {
                 // Just delete existing call
@@ -1791,6 +1840,8 @@ const char *default_message_names[] = {
     "cancel",
     "200",
 };
+vector <const char *> v_Def_Msg_Names(default_message_names);
+
 const char *default_message_strings[] = {
     /* 3pcc_abort */
     "call-id: [call_id]\ninternal-cmd: abort_call\n\n",
@@ -1847,6 +1898,8 @@ const char *default_message_strings[] = {
     "Content-Length: 0\n\n"
 };
 
+vector <const char *>v_Def_Msg_String(default_message_strings);
+
 SendingMessage **default_messages;
 
 void init_default_messages()
@@ -1898,7 +1951,7 @@ bool call::process_unexpected(char * msg)
     char buffer[MAX_HEADER_LEN];
     char *desc = buffer;
     int res = 0;
-
+    if(msg){
     message *curmsg = call_scenario->messages[msg_index];
 
     curmsg->nb_unexp++;
@@ -1929,7 +1982,7 @@ bool call::process_unexpected(char * msg)
     }
     desc += snprintf(desc, MAX_HEADER_LEN - (desc - buffer), "(index %d)", msg_index);
 
-    WARNING("%s, received '%s'", buffer, msg);
+    ERROR("%s, received '%s'", buffer, msg);
 
     TRACE_MSG("-----------------------------------------------\n"
               "Unexpected %s message received:\n\n%s\n",
@@ -1944,7 +1997,7 @@ bool call::process_unexpected(char * msg)
         if (twinSippSocket && (msg_index > 0)) {
             res = sendCmdBuffer(createSendingMessage(get_default_message("3pcc_abort"), -1));
             if (res) {
-                WARNING("sendCmdBuffer returned %d", res);
+                ERROR("sendCmdBuffer returned %d", res);
             }
         }
 
@@ -1973,10 +2026,12 @@ bool call::process_unexpected(char * msg)
         return false;
     }
 }
+ ERROR("Failed: pointer allocation");
+}
 
 void call::abort()
 {
-    WARNING("Aborted call with Call-ID '%s'", id);
+    ERROR("Aborted call with Call-ID '%s'", id);
     abortCall(false);
 }
 
@@ -2111,11 +2166,22 @@ int call::sendCmdBuffer(char* cmd)
     dest = cmd ;
 
     strcat(dest, delimitor);
-
+    try{
     rc = write_socket(twinSippSocket, dest, strlen(dest), WS_BUFFER, &twinSippSocket->ss_remote_sockaddr);
+    }catch(...){
+        ERROR("Failed: API Call write_socket()");
+    }
     if(rc <  0) {
+        try{
         computeStat(CStat::E_CALL_FAILED);
-        computeStat(CStat::E_FAILED_CMD_NOT_SENT);
+        }catch(...){
+         ERROR("Failed: API computeStat();");   
+        }
+        try{
+            computeStat(CStat::E_FAILED_CMD_NOT_SENT);
+        }catch(...){
+            ERROR("Failed: API computeStat();");
+        }
         delete this;
         return(-1);
     }
@@ -2127,7 +2193,12 @@ int call::sendCmdBuffer(char* cmd)
 char* call::createSendingMessage(SendingMessage *src, int P_index, int *msgLen)
 {
     static char msg_buffer[SIPP_MAX_MSG_SIZE+2];
-    return createSendingMessage(src, P_index, msg_buffer, sizeof(msg_buffer), msgLen);
+    return 
+    try{ 
+    createSendingMessage(src, P_index, msg_buffer, sizeof(msg_buffer), msgLen);
+    }catch(...){
+    ERROR("Failed: API Call createSendingMessage");    
+    }
 }
 
 char* call::createSendingMessage(SendingMessage *src, int P_index, char *msg_buffer, int buf_len, int *msgLen)
@@ -2141,7 +2212,7 @@ char* call::createSendingMessage(SendingMessage *src, int P_index, char *msg_buf
     bool supresscrlf = false;
 
     *dest = '\0';
-
+    if((src) && (msg_buffer) && (msgLen)){
     for (int i = 0; i < src->numComponents(); i++) {
         MessageComponent *comp = src->getComponent(i);
         int left = buf_len - (dest - msg_buffer);
@@ -2572,16 +2643,23 @@ char* call::createSendingMessage(SendingMessage *src, int P_index, char *msg_buf
 
     return msg_buffer;
 }
-
+ERROR("Failed: API pointer arguements are not valid");
+}
 bool call::process_twinSippCom(char * msg)
 {
     int		  search_index;
     bool            found = false;
     T_ActionResult  actionResult;
-
+    if(msg){ 
     callDebug("Processing incoming command for call-ID %s:\n%s\n\n", id, msg);
-
+    }else{
+        ERROR("Failed: API arguement pointer Invalid ");
+    }
+    try{ 
     setRunning();
+    }catch(...){
+        ERROR("Failed: API Call setRunning");
+    }
 
     if (checkInternalCmd(msg) == false) {
 
@@ -2602,7 +2680,7 @@ bool call::process_twinSippCom(char * msg)
                         found = true;
                         break;
                     } else {
-                        WARNING("Unexpected sender for the received peer message \n%s\n", msg);
+                        ERROR("Unexpected sender for the received peer message \n%s\n", msg);
                         return rejectCall();
                     }
                 } else {
@@ -2652,7 +2730,7 @@ bool call::checkInternalCmd(char * cmd)
 {
 
     char * L_ptr1, * L_ptr2, L_backup;
-
+    if(cmd){
     L_ptr1 = strstr(cmd, "internal-cmd:");
     if (!L_ptr1) {
         return (false);
@@ -2687,6 +2765,8 @@ bool call::checkInternalCmd(char * cmd)
 
     *L_ptr2 = L_backup;
     return (false);
+}
+ERROR("Failed: API arguement Pointer is invalid ");
 }
 
 bool call::check_peer_src(char * msg, int search_index)
@@ -2895,7 +2975,11 @@ bool call::matches_scenario(unsigned int index, int reply_code, char * request, 
     if ((curmsg -> recv_request)) {
         if (curmsg->regexp_match) {
             if (curmsg -> regexp_compile == NULL) {
+                try{
                 regex_t *re = new regex_t;
+                }catch(...){
+                    ERROR("Failed: Memoey Allocation for regex_t");
+                }
                 if (regcomp(re, curmsg -> recv_request, REG_EXTENDED|REG_NOSUB)) {
                     ERROR("Invalid regular expression for index %d: %s", curmsg->recv_request);
                 }
@@ -3332,9 +3416,17 @@ bool call::process_incoming(char * msg, struct sockaddr_storage *src)
 
         /* should cache the route set */
         if (reply_code) {
+            try{
             computeRouteSetAndRemoteTargetUri (rr, ch, false);
+            }catch(...){
+                ERROR("Failed,API computeRouteSetAndRemoteTargetUri");
+            }
         } else {
+            try{
             computeRouteSetAndRemoteTargetUri (rr, ch, true);
+            }catch(...){
+                ERROR("Failed: API computeRouteSetAndRemoteTargetUri");
+            }
         }
         // WARNING("next_req_url is [%s]", next_req_url);
     }
@@ -3353,8 +3445,11 @@ bool call::process_incoming(char * msg, struct sockaddr_storage *src)
         if (auth[0] == 0) {
             ERROR("Couldn't find 'Proxy-Authenticate' or 'WWW-Authenticate' in 401 or 407!");
         }
-
+        try{  
         realloc_ptr = (char *) realloc(dialog_authentication, strlen(auth) + 2);
+        }catch(...){
+            ERROR(Failed: Realloc pointer allocation to dialog_authentication);
+        }
         if (realloc_ptr) {
             dialog_authentication = realloc_ptr;
         } else {
@@ -3477,7 +3572,7 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
                 if(currentAction->getCheckIt() == true && (strlen(msgPart) == 0)) {
                     // the sub message is not found and the checking action say it
                     // MUST match --> Call will be marked as failed but will go on
-                    WARNING("Failed regexp match: header %s not found in message %s\n", currentAction->getLookingChar(), msg);
+                    ERROR("Failed regexp match: header %s not found in message %s\n", currentAction->getLookingChar(), msg);
                     return(call::E_AR_HDR_NOT_FOUND);
                 }
                 haystack = msgPart;
@@ -3511,13 +3606,13 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
             if( (!(M_callVariableTable->getVar(currentAction->getVarId())->isSet())) && (currentAction->getCheckIt() == true) ) {
                 // the message doesn't match and the checkit action say it MUST match
                 // Allow easier regexp debugging
-                WARNING("Failed regexp match: looking in '%s', with regexp '%s'",
+                ERROR("Failed regexp match: looking in '%s', with regexp '%s'",
                         haystack, currentAction->getRegularExpression());
                 return(call::E_AR_REGEXP_DOESNT_MATCH);
             } else if ( ((M_callVariableTable->getVar(currentAction->getVarId())->isSet())) &&
                         (currentAction->getCheckItInverse() == true) ) {
                 // The inverse of the above
-                WARNING("Regexp matched but should not: looking in '%s', with regexp '%s'",
+                ERROR("Regexp matched but should not: looking in '%s', with regexp '%s'",
                         haystack, currentAction->getRegularExpression());
                 return(call::E_AR_REGEXP_SHOULDNT_MATCH);
             }
@@ -3557,12 +3652,26 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
             inFiles[file]->insert(value);
 
             free(file);
+            file = NULL;
             free(value);
+            value = NULL;
         } else if (currentAction->getActionType() == CAction::E_AT_REPLACE) {
             /* Create strings from the sending messages. */
+            try{
             char *file = strdup(createSendingMessage(currentAction->getMessage(0), -2));
+            }catch(...){
+             ERROR("Failed, API strdup");   
+            }
+            try{
             char *line = strdup(createSendingMessage(currentAction->getMessage(1), -2));
+            }catch(...){
+                ERROR("Failed, API strdup");
+            }
+            try{
             char *value = strdup(createSendingMessage(currentAction->getMessage(2), -2));
+            }catch(...){
+                ERROR("Failed, API strdup");
+            }
 
             if (inFiles.find(file) == inFiles.end()) {
                 ERROR("Invalid injection file for replace: %s", file);
@@ -3577,8 +3686,11 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
             inFiles[file]->replace(lineNum, value);
 
             free(file);
+            file = NULL;
             free(line);
+            line = NULL;
             free(value);
+            value = NULL;
         } else if (currentAction->getActionType() == CAction::E_AT_CLOSE_CON) {
             if (call_socket) {
                 sipp_socket_invalidate(call_socket);
@@ -3668,8 +3780,11 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
             memcpy(&call_socket->ss_dest, &call_peer, SOCK_ADDR_SIZE(_RCAST(struct sockaddr_storage *,&call_peer)));
 
             free(str_host);
+            str_host = NULL;
             free(str_port);
+            str_port = NULL;
             free(str_protocol);
+            str_protocol = NULL;
 
             if (protocol == T_TCP || protocol == T_SCTP) {
                 close(call_socket->ss_fd);
@@ -3679,9 +3794,9 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
                     if (reconnect_allowed()) {
                         if(errno == EINVAL) {
                             /* This occurs sometime on HPUX but is not a true INVAL */
-                            WARNING("Unable to connect a TCP/SCTP/TLS socket, remote peer error");
+                            ERROR("Unable to connect a TCP/SCTP/TLS socket, remote peer error");
                         } else {
-                            WARNING("Unable to connect a TCP/SCTP/TLS socket");
+                            ERROR("Unable to connect a TCP/SCTP/TLS socket");
                         }
                         /* This connection failed.  We must be in multisocket mode, because
                          * otherwise we would already have a call_socket.  This call can not
@@ -3721,16 +3836,26 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
                 method[end - msg] = '\0';
 
                 /* Generate the username to verify it against. */
+                try{
                 char *tmp = createSendingMessage(currentAction->getMessage(0), -2 /* do not add crlf*/);
+                }catch(...){
+                    ERROR("Failed: API createSendingMessage");
+                }
                 char *username = strdup(tmp);
                 /* Generate the password to verify it against. */
+                try{
                 tmp= createSendingMessage(currentAction->getMessage(1), -2 /* do not add crlf*/);
+                }catch(...){
+                    ERROR("Failed , API createSendingMessage");
+                }
                 char *password = strdup(tmp);
 
                 result = verifyAuthHeader(username, password, method, auth);
 
                 free(username);
+                username = NULL;
                 free(password);
+                password = NULL;
             }
 
             M_callVariableTable->getVar(currentAction->getVarId())->setBool(result);
@@ -3832,7 +3957,7 @@ call::T_ActionResult call::executeAction(char * msg, message *curmsg)
                         int ret;
                         ret = system(x); // second child runs
                         if(ret == -1) {
-                            WARNING("system call error for %s",x);
+                            ERROR("system call error for %s",x);
                         }
                     }
                     exit(EXIT_OTHER);
@@ -4016,6 +4141,7 @@ void call::setLastMsg(const char *msg)
         last_recv_msg = realloc_ptr;
     } else {
         free(last_recv_msg);
+        last_recv_msg = NULL;
         ERROR("Out of memory!");
         return;
     }
@@ -4033,11 +4159,16 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
     switch (P_case) {
     case E_AM_UNEXP_BYE: // response for an unexpected BYE
         // usage of last_ keywords
+        try{
         realloc_ptr = (char *) realloc(last_recv_msg, strlen(P_recv) + 1);
+        }catch(...){
+            ERROR("Failed, Invalid Memory allocation");
+        }
         if (realloc_ptr) {
             last_recv_msg = realloc_ptr;
         } else {
             free(last_recv_msg);
+            last_recv_msg = NULL;
             ERROR("Out of memory!");
             return false;
         }
@@ -4048,7 +4179,7 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
         // The BYE is unexpected, count it
         call_scenario->messages[msg_index] -> nb_unexp++;
         if (default_behaviors & DEFAULT_BEHAVIOR_ABORTUNEXP) {
-            WARNING("Aborting call on an unexpected BYE for call: %s", (id==NULL)?"none":id);
+            ERROR("Aborting call on an unexpected BYE for call: %s", (id==NULL)?"none":id);
             if (default_behaviors & DEFAULT_BEHAVIOR_BYE) {
                 sendBuffer(createSendingMessage(get_default_message("200"), -1));
             }
@@ -4057,14 +4188,22 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
             if (twinSippSocket && (msg_index > 0)) {
                 res = sendCmdBuffer(createSendingMessage(get_default_message("3pcc_abort"), -1));
                 if (res) {
-                    WARNING("sendCmdBuffer returned %d", res);
+                    ERROR("sendCmdBuffer returned %d", res);
                 }
             }
+            try{
             computeStat(CStat::E_CALL_FAILED);
+            }catch(...){
+                ERROR("Failed,API Call to computeStat()");
+            }
+            try{
             computeStat(CStat::E_FAILED_UNEXPECTED_MSG);
+            }catch(...){
+                ERROR("Failed,API Call to computeStat()");
+            }
             delete this;
         } else {
-            WARNING("Continuing call on an unexpected BYE for call: %s", (id==NULL)?"none":id);
+            ERROR("Continuing call on an unexpected BYE for call: %s", (id==NULL)?"none":id);
         }
         break ;
 
@@ -4075,6 +4214,7 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
             last_recv_msg = realloc_ptr;
         } else {
             free(last_recv_msg);
+            last_recv_msg = NULL;
             ERROR("Out of memory!");
             return false;
         }
@@ -4085,7 +4225,7 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
         // The CANCEL is unexpected, count it
         call_scenario->messages[msg_index] -> nb_unexp++;
         if (default_behaviors & DEFAULT_BEHAVIOR_ABORTUNEXP) {
-            WARNING("Aborting call on an unexpected CANCEL for call: %s", (id==NULL)?"none":id);
+            ERROR("Aborting call on an unexpected CANCEL for call: %s", (id==NULL)?"none":id);
             if (default_behaviors & DEFAULT_BEHAVIOR_BYE) {
                 sendBuffer(createSendingMessage(get_default_message("200"), -1));
             }
@@ -4094,15 +4234,18 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
             if (twinSippSocket && (msg_index > 0)) {
                 res = sendCmdBuffer(createSendingMessage(get_default_message("3pcc_abort"), -1));
                 if (res) {
-                    WARNING("sendCmdBuffer returned %d", res);
+                    ERROR("sendCmdBuffer returned %d", res);
                 }
             }
-
+            try{     
             computeStat(CStat::E_CALL_FAILED);
+            }catch(...){
+                ERROR("Failed, API computeStat()");
+            }
             computeStat(CStat::E_FAILED_UNEXPECTED_MSG);
             delete this;
         } else {
-            WARNING("Continuing call on unexpected CANCEL for call: %s", (id==NULL)?"none":id);
+            ERROR("Continuing call on unexpected CANCEL for call: %s", (id==NULL)?"none":id);
         }
         break ;
 
@@ -4113,6 +4256,7 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
             last_recv_msg = realloc_ptr;
         } else {
             free(last_recv_msg);
+            last_recv_msg = NULL;
             ERROR("Out of memory!");
             return false;
         }
@@ -4121,22 +4265,26 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
         strcpy(last_recv_msg, P_recv);
 
         if (default_behaviors & DEFAULT_BEHAVIOR_PINGREPLY) {
-            WARNING("Automatic response mode for an unexpected PING for call: %s", (id==NULL)?"none":id);
+            ERROR("Automatic response mode for an unexpected PING for call: %s", (id==NULL)?"none":id);
+            try{
             sendBuffer(createSendingMessage(get_default_message("200"), -1));
+            }catch(...){
+                ERROR("Failed, API Call to sendBuffer");
+            }
             // Note: the call ends here but it is not marked as bad. PING is a
             //       normal message.
             // if twin socket call => reset the other part here
             if (twinSippSocket && (msg_index > 0)) {
                 res = sendCmdBuffer(createSendingMessage(get_default_message("3pcc_abort"), -1));
                 if (res) {
-                    WARNING("sendCmdBuffer returned %d", res);
+                    ERROR("sendCmdBuffer returned %d", res);
                 }
             }
 
             CStat::globalStat(CStat::E_AUTO_ANSWERED);
             delete this;
         } else {
-            WARNING("Do not answer on an unexpected PING for call: %s", (id==NULL)?"none":id);
+            ERROR("Do not answer on an unexpected PING for call: %s", (id==NULL)?"none":id);
         }
         break ;
 
@@ -4164,8 +4312,12 @@ bool call::automaticResponseMode(T_AutoMode P_case, char * P_recv)
 
         strcpy(last_recv_msg, P_recv);
 
-        WARNING("Automatic response mode for an unexpected INFO, UPDATE or NOTIFY for call: %s", (id==NULL)?"none":id);
+        ERROR("Automatic response mode for an unexpected INFO, UPDATE or NOTIFY for call: %s", (id==NULL)?"none":id);
+        try{
         sendBuffer(createSendingMessage(get_default_message("200"), -1));
+        }catch(...){
+            ERROR("API Failed, sendBuffer");
+        }
 
         // restore previous last msg
         if (last_recv_msg_saved == true) {

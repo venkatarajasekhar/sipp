@@ -104,7 +104,7 @@ public:
     void afficheInfo();
     const char *comparatorToString(T_Comparator comp);
     bool compare(VariableTable *variableTable);
-
+    static const char* strIntCmd(CAction::T_IntCmdType type);
     T_ActionType   getActionType();
     T_VarType      getVarType();
     T_LookingPlace getLookingPlace();

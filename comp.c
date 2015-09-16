@@ -28,10 +28,10 @@
 
 char * comp_load()
 {
-    void *handle;
-    char *error;
+    void *handle = NULL;
+    char *error = NULL;
 
-    comp_error[0] = 0;
+    comp_error[0] = {0};
 
     handle = dlopen(COMP_PLUGGIN, RTLD_LAZY);
     if (!handle) {

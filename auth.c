@@ -553,6 +553,7 @@ char * base64_decode_string( const char *buf, unsigned int len, int *newlen )
     int j,x1,x2,x3,x4;
     char *out;
     out = (char *)malloc( ( len * 3/4 ) + 8 );
+    if(out){
     for(i=0,j=0; i+3<len; i+=4) {
         x1=base64_val(buf[i]);
         x2=base64_val(buf[i+1]);
@@ -561,6 +562,10 @@ char * base64_decode_string( const char *buf, unsigned int len, int *newlen )
         out[j++]=(x1<<2) | ((x2 & 0x30)>>4);
         out[j++]=((x2 & 0x0F)<<4) | ((x3 & 0x3C)>>2);
         out[j++]=((x3 & 0x03)<<6) | (x4 & 0x3F);
+    }
+    }
+    else{
+      return NULL;
     }
     if (i<len) {
         x1 = base64_val(buf[i]);
@@ -592,9 +597,6 @@ char * base64_decode_string( const char *buf, unsigned int len, int *newlen )
     return out;
 }
 
-char base64[64]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-char hexa[16]="0123456789abcdef";
 int createAuthHeaderAKAv1MD5(char * user, char * aka_OP,
                              char * aka_AMF,
                              char * aka_K,
@@ -644,12 +646,12 @@ int createAuthHeaderAKAv1MD5(char * user, char * aka_OP,
         if(nonce) free(nonce);
         return 0;
     }
-    memcpy(rnd,nonce,RANDLEN);
-    memcpy(sqnxoraka,nonce+RANDLEN,SQNLEN);
-    memcpy(mac,nonce+RANDLEN+SQNLEN+AMFLEN,MACLEN);
-    memcpy(k,aka_K,KLEN);
-    memcpy(amf,aka_AMF,AMFLEN);
-    memcpy(op,aka_OP,OPLEN);
+    memcpy(&rnd,nonce,RANDLEN);
+    memcpy(&sqnxoraka,nonce+RANDLEN,SQNLEN);
+    memcpy(&mac,nonce+RANDLEN+SQNLEN+AMFLEN,MACLEN);
+    memcpy(&k,&aka_K,KLEN);
+    memcpy(&amf,&aka_AMF,AMFLEN);
+    memcpy(&op,&aka_OP,OPLEN);
 
     /* Compute the AK, response and keys CK IK */
     f2345(k,rnd,res,ck,ik,ak,op);
@@ -661,7 +663,7 @@ int createAuthHeaderAKAv1MD5(char * user, char * aka_OP,
 
     /* compute XMAC */
     f1(k,rnd,sqn,(unsigned char *) aka_AMF,xmac,op);
-    if (memcmp(mac,xmac,MACLEN)!=0) {
+    if (memcmp(&mac,&xmac,MACLEN)!=0) {
         free(nonce);
         sprintf(result,"createAuthHeaderAKAv1MD5 : MAC != eXpectedMAC -> Server might not know the secret (man-in-the-middle attack?) \n");
         return 0;

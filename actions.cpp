@@ -23,11 +23,14 @@
 
 #include "sipp.hpp"
 #include <assert.h>
+#include <stdio>
 #ifdef PCAPPLAY
 #include "prepare_pcap.h"
 #endif
 
-static const char* strIntCmd(CAction::T_IntCmdType type)
+using namespace std;
+
+static const char* CAction::strIntCmd(CAction::T_IntCmdType type)
 {
     switch (type) {
     case CAction::E_INTCMD_STOPCALL:
@@ -66,6 +69,7 @@ const char * CAction::comparatorToString(T_Comparator comp)
 
 bool CAction::compare(VariableTable *variableTable)
 {
+    if(variableTable){
     double lhs = variableTable->getVar(M_varInId)->getDouble();
     double rhs = M_varIn2Id ? variableTable->getVar(M_varIn2Id)->getDouble() : M_doubleValue;
 
@@ -86,6 +90,8 @@ bool CAction::compare(VariableTable *variableTable)
         ERROR("Internal error: Invalid comparison type %d", M_comp);
         return false; /* Shut up warning. */
     }
+}
+ERROR("Internal error: Invalid ptr to variableTable type %p",variableTable );
 }
 
 void CAction::afficheInfo()
@@ -323,7 +329,11 @@ void CAction::setNbSubVarId (int            P_value)
         delete [] M_subVarId;
         M_subVarId      = NULL;
     }
+    try{
     M_subVarId = new int[M_maxNbSubVarId] ;
+    }catch (bad_alloc& ba){
+    cerr << "bad_alloc caught: " << ba.what() << '\n';
+    }
     M_nbSubVarId = 0 ;
 }
 int  CAction::getNbSubVarId ()
@@ -340,7 +350,11 @@ void CAction::setLookingChar  (char*          P_value)
     }
 
     if(P_value != NULL) {
+        try{
         M_lookingChar = new char[strlen(P_value)+1];
+        }catch (bad_alloc& ba){
+         cerr << "bad_alloc caught: " << ba.what() << '\n';
+        }
         strcpy(M_lookingChar, P_value);
     }
 }
@@ -356,7 +370,11 @@ void CAction::setMessage  (char*          P_value, int n)
 
     if(P_value != NULL) {
         M_message_str[n] = strdup(P_value);
+        try{
         M_message[n] = new SendingMessage(M_scenario, P_value, true /* skip sanity */);
+        }catch (bad_alloc& ba){
+        cerr << "bad_alloc caught: " << ba.what() << '\n';
+       }
     }
 }
 
@@ -406,8 +424,11 @@ int CAction::executeRegExp(char* P_string, VariableTable *P_callVarTable)
 
         for(int i = 0; i <= getNbSubVarId(); i++) {
             if(pmatch[i].rm_eo == -1) break ;
-
+            try{  
             setSubString(&result, P_string, pmatch[i].rm_so, pmatch[i].rm_eo);
+            }catch(...){
+            ERROR("Failed setSubString(), due to NULL pointer arguement!");
+            }
             L_callVar->setMatchingValue(result);
 
             if (i == getNbSubVarId())
@@ -425,7 +446,11 @@ void CAction::setSubString(char** P_target, char* P_source, int P_start, int P_s
 
     if(P_source != NULL) {
         sizeOf = P_stop - P_start;
+        try{
         (*P_target) = new char[sizeOf + 1];
+        }catch (bad_alloc& ba){
+        cerr << "bad_alloc caught: " << ba.what() << '\n';
+        }
 
         if (sizeOf > 0) {
             memcpy((*P_target), &(P_source[P_start]), sizeOf);
@@ -448,7 +473,11 @@ void CAction::setPcapArgs (pcap_pkts  *  P_value)
 
     if(P_value != NULL) {
         M_pcapArgs = (pcap_pkts *)malloc(sizeof(*M_pcapArgs));
+        try{
         memcpy(M_pcapArgs, P_value, sizeof(*M_pcapArgs));
+        }catch (bad_alloc& ba){
+        cerr << "bad_alloc caught: " << ba.what() << '\n';
+       }
     }
 }
 

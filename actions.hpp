@@ -36,7 +36,7 @@ class CSample;
 class CAction
 {
 public:
-    enum T_ActionType {
+    enum class T_ActionType {
         E_AT_NO_ACTION = 0,
         E_AT_ASSIGN_FROM_REGEXP,
         E_AT_CHECK,
@@ -73,7 +73,7 @@ public:
         E_AT_NB_ACTION
     };
 
-    enum T_LookingPlace {
+    enum class T_LookingPlace {
         E_LP_MSG = 0,
         E_LP_HDR,
         E_LP_BODY,
@@ -81,7 +81,7 @@ public:
         E_LP_NB_LOOKING_PLACE
     };
 
-    enum T_Comparator {
+    enum class T_Comparator {
         E_C_EQ,
         E_C_NE,
         E_C_GT,
@@ -91,7 +91,7 @@ public:
         E_C_NB_COMPARATOR
     };
 
-    enum T_IntCmdType {
+    enum class T_IntCmdType {
         E_INTCMD_INVALID = 0,
         E_INTCMD_STOPCALL,
         E_INTCMD_STOP_ALL,

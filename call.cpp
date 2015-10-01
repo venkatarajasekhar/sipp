@@ -61,6 +61,8 @@ extern  SSL                 *ssl_list[];
 extern  struct pollfd        pollfiles[];
 extern  SSL_CTX             *sip_trp_ssl_ctx;
 #endif
+#define PAT_AUDIO 1
+#define PAT_VIDEO 2
 
 extern  map<string, struct sipp_socket *>     map_perip_fd;
 
@@ -86,7 +88,11 @@ unsigned int call::get_tdm_map_number()
 
     /* Find a number in the tdm_map which is not in use */
     interval = (tdm_map_a+1) * (tdm_map_b+1) * (tdm_map_c+1);
+    try{
     random = rand() % interval;
+    }catch(...){
+        
+    }
     while ((i<interval) && (!found)) {
         if (tdm_map[(random + i - 1) % interval] == false) {
             nb = (random + i - 1) % interval;
@@ -135,31 +141,63 @@ unsigned int call::wake()
 uint32_t get_remote_ip_media(char *msg)
 {
     char pattern[] = "c=IN IP4 ";
+    vector<char> v_pattern(pattern);
     char *begin, *end;
     char ip[32];
+    
+    if(msg){
+        try{
     char *my_msg = strdup(msg);
-
+        }catch(...){
+            
+        }
+    }else{
+        //Need to be implement
+    }
     if (!my_msg) {
         return INADDR_NONE;
     }
-    begin = strstr(my_msg, pattern);
+    try{
+    begin = strstr(my_msg, v_pattern);
+    }catch(...){
+        
+    }
+    
     if (!begin) {
         free(my_msg);
+        my_msg = NULL;
         /* Can't find what we're looking at -> return no address */
         return INADDR_NONE;
     }
     begin += sizeof("c=IN IP4 ") - 1;
+    try{
     end = strstr(begin, "\r\n");
+    }catch(...){
+        
+    }
     if (!end) {
         free(my_msg);
+        my_msg = NULL;
         return INADDR_NONE;
     }
     *end = '\0';
+    try{
     memset(ip, 0, 32);
+    }catch(...){
+    }
+    try{
     strncpy(ip, begin, sizeof(ip) - 1);
+    }catch(...){
+        
+    }
     ip[sizeof(ip) - 1] = '\0';
     free(my_msg);
-    return inet_addr(ip);
+    my_msg = NULL;
+    return try{
+        inet_addr(ip);
+    }catch(...){
+        
+    }
 }
 
 /*
@@ -171,31 +209,65 @@ uint8_t get_remote_ipv6_media(char *msg, struct in6_addr *addr)
     char pattern[] = "c=IN IP6 ";
     char *begin, *end;
     char ip[128];
+    vector <char> v_ip(ip);
+    if(msg){
+        try{
     char *my_msg = strdup(msg);
-
+        }catch(...){
+            
+        }
+    }else{
+        //Need to be implement
+    }
+    vector <char> v_pattern(pattern);
+    try{
     memset(addr, 0, sizeof(*addr));
-    memset(ip, 0, 128);
-
+    }catch(...){
+        
+    }
+    try{
+    memset(v_ip, 0, 128);
+    }catch(...){
+        
+    }
     if (!my_msg) {
         return 0;
     }
-    begin = strstr(my_msg,pattern);
+    //begin = strstr(my_msg,pattern);
+    try{
+    begin = strstr(my_msg,v_pattern);
+    }catch(...){
+        
+    }
     if (!begin) {
         free(my_msg);
         /* Can't find what we're looking at -> return no address */
         return 0;
     }
     begin += sizeof("c=IN IP6 ") - 1;
+    try{
     end = strstr(begin, "\r\n");
+    }catch(...){
+        
+    }
     if (!end) {
         free(my_msg);
+        my_msg = NULL;   
         return 0;
     }
     *end = '\0';
-    strncpy(ip, begin, sizeof(ip) -1);
-    ip[sizeof(ip) - 1] = '\0';
+    try{
+    strncpy(v_ip, begin, sizeof(v_ip) -1);
+    }catch(...){
+        
+    }
+    v_ip[sizeof(v_ip) - 1] = '\0';
     free(my_msg);
-    if (!inet_pton(AF_INET6, ip, addr)) {
+    my_msg = NULL;
+    
+    if (!try{
+        inet_pton(AF_INET6, v_ip, addr)
+        }catch(...){}) {
         return 0;
     }
     return 1;
@@ -205,14 +277,13 @@ uint8_t get_remote_ipv6_media(char *msg, struct in6_addr *addr)
  * Look for "m=audio " or "m=video " pattern in the message and extract the
  * following value which should be port number
  */
-#define PAT_AUDIO 1
-#define PAT_VIDEO 2
+
 uint16_t get_remote_port_media(const char *msg, int pattype)
 {
-    const char *pattern;
+    const char *pattern = NULL;
     char *begin, *end;
     char number[7];
-
+    vector<char> v_number(number); 
     if (pattype == PAT_AUDIO) {
         pattern = "m=audio ";
     } else if (pattype == PAT_VIDEO) {
@@ -239,11 +310,29 @@ uint16_t get_remote_port_media(const char *msg, int pattype)
         return 0;
     }
     *end = '\0';
-    memset(number, 0, sizeof(number));
-    strncpy(number, begin, sizeof(number) - 1);
-    number[sizeof(number) - 1] = '\0';
+    //memset(number, 0, sizeof(number));
+    //strncpy(number, begin, sizeof(number) - 1);
+    //number[sizeof(number) - 1] = '\0';
+    //free(my_msg);
+    try{
+    memset(v_number, 0, sizeof(number));
+    }catch(...){
+        
+    }
+    try{
+    strncpy(v_number, begin, sizeof(number) - 1);
+    }catch(...){
+        
+    }
+    v_number[sizeof(v_number) - 1] = '\0';
     free(my_msg);
-    return atoi(number);
+    my_msg = NULL;
+    return 
+    try{
+    atoi(number);
+    }catch(...){
+        
+    }
 }
 
 /*
@@ -255,8 +344,16 @@ void call::get_remote_media_addr(char *msg)
     if(msg){
     if (media_ip_is_ipv6) {
         struct in6_addr ip_media;
-        if (get_remote_ipv6_media(msg, &ip_media)) {
+        if (try{
+            get_remote_ipv6_media(msg, &ip_media)
+            }catch(...){
+                
+            }) {
+                try{
             audio_port = get_remote_port_media(msg, PAT_AUDIO);
+                }catch(...){
+                    
+                }
             if (audio_port) {
                 /* We have audio in the SDP: set the to_audio addr */
                 (_RCAST(struct sockaddr_in6 *, &(play_args_a.to)))->sin6_flowinfo = 0;
@@ -265,7 +362,11 @@ void call::get_remote_media_addr(char *msg)
                 (_RCAST(struct sockaddr_in6 *, &(play_args_a.to)))->sin6_port = audio_port;
                 (_RCAST(struct sockaddr_in6 *, &(play_args_a.to)))->sin6_addr = ip_media;
             }
+            try{
             video_port = get_remote_port_media(msg, PAT_VIDEO);
+            }catch(...){
+                
+            }
             if (video_port) {
                 /* We have video in the SDP: set the to_video addr */
                 (_RCAST(struct sockaddr_in6 *, &(play_args_v.to)))->sin6_flowinfo = 0;
@@ -278,9 +379,17 @@ void call::get_remote_media_addr(char *msg)
         }
     } else {
         uint32_t ip_media;
+        try{
         ip_media = get_remote_ip_media(msg);
+        }catch(...){
+            
+        }
         if (ip_media != INADDR_NONE) {
+            try{
             audio_port = get_remote_port_media(msg, PAT_AUDIO);
+            }catch(...){
+                
+            }
             if (audio_port) {
                 /* We have audio in the SDP: set the to_audio addr */
                 (_RCAST(struct sockaddr_in *, &(play_args_a.to)))->sin_family = AF_INET;
@@ -310,36 +419,98 @@ unsigned long call::hash(const char * msg)
     int c;
     if(msg){ 
     if (rtcheck == RTCHECK_FULL) {
-        while ((c = *msg++))
+        while ((c = *msg++)){
+            try{ 
             hash = c + (hash << 6) + (hash << 16) - hash;
+            }catch(...){
+                
+            }
+        }
     } else if (rtcheck == RTCHECK_LOOSE) {
         /* Based on section 11.5 (bullet 2) of RFC2543 we only take into account
          * the To, From, Call-ID, and CSeq values. */
+         try{
         const char *hdr = get_header_content(msg,"To:");
+         }catch(...){
+             
+         }
         while ((c = *hdr++))
+            try{
             hash = c + (hash << 6) + (hash << 16) - hash;
+            }catch(...){
+                
+            }
+            try{
         hdr = get_header_content(msg,"From:");
-        while ((c = *hdr++))
+            }catch(...){
+                
+            }
+        while ((c = *hdr++)){
+            try{
             hash = c + (hash << 6) + (hash << 16) - hash;
+            }catch(...){
+                
+            }
+        }
+        try{
         hdr = get_header_content(msg,"Call-ID:");
-        while ((c = *hdr++))
+        }catch(...){
+            
+        }
+        while ((c = *hdr++)){
+            try{
             hash = c + (hash << 6) + (hash << 16) - hash;
+            }catch(...){
+                
+            }
+        }
+        try{
         hdr = get_header_content(msg,"CSeq:");
-        while ((c = *hdr++))
+        }catch(...){
+            
+        }
+        while ((c = *hdr++)){
+            try{
             hash = c + (hash << 6) + (hash << 16) - hash;
+            }catch(...){
+                
+            }
+        }
         /* For responses, we should also consider the code and body (if any),
          * because they are not nearly as well defined as the request retransmission. */
         if (!strncmp(msg, "SIP/2.0", strlen("SIP/2.0"))) {
             /* Add the first line into the hash. */
+            try{
             hdr = msg + strlen("SIP/2.0");
-            while ((c = *hdr++) && (c != '\r'))
+            }catch(...){
+                
+            }
+            while ((c = *hdr++) && (c != '\r')){
+                try{
                 hash = c + (hash << 6) + (hash << 16) - hash;
+                }catch(...){
+                    
+                }
+            }
             /* Add the body (if any) into the hash. */
+            try{
             hdr = strstr(msg, "\r\n\r\n");
+            }catch(...){
+                
+            }
             if (hdr) {
+                try{
                 hdr += strlen("\r\n\r\n");
-                while ((c = *hdr++))
+                }catch(...){
+                    
+                }
+                while ((c = *hdr++)){
+                    try{
                     hash = c + (hash << 6) + (hash << 16) - hash;
+                    }catch(...){
+                        
+                    }
+                }
             }
         }
     } else {
@@ -382,8 +553,10 @@ call::call(scenario * call_scenario, struct sipp_socket *socket, struct sockaddr
 call *call::add_call(int userId, bool ipv6, struct sockaddr_storage *dest)
 {
     static char call_id[MAX_HEADER_LEN];
-
-    const char * src = call_id_string;
+    vector<static char> v_call_id(call_id[MAX_HEADER_LEN]);
+    /*Need to under stand the Logic */
+    //const char * src = call_id_string;
+    vetcor<const char *> vsrc;
     int count = 0;
 
     if(!next_number) {
@@ -398,10 +571,18 @@ call *call::add_call(int userId, bool ipv6, struct sockaddr_storage *dest)
                 count += snprintf(&call_id[count], MAX_HEADER_LEN-count-1,"%u", next_number);
                 break;
             case 'p':
+                try{ 
                 count += snprintf(&call_id[count], MAX_HEADER_LEN-count-1,"%u", pid);
+                }catch(...){
+                    
+                }
                 break;
             case 's':
+                try{ 
                 count += snprintf(&call_id[count], MAX_HEADER_LEN-count-1,"%s", local_ip);
+                }catch(...){
+                    
+                }
                 break;
             default:      // treat all unknown sequences as %%
                 call_id[count++] = '%';

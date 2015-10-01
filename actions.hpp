@@ -36,7 +36,7 @@ class CSample;
 class CAction
 {
 public:
-    enum class T_ActionType {
+    typedef enum class T_ActionType {
         E_AT_NO_ACTION = 0,
         E_AT_ASSIGN_FROM_REGEXP,
         E_AT_CHECK,
@@ -71,17 +71,17 @@ public:
         E_AT_PLAY_PCAP_VIDEO,
 #endif
         E_AT_NB_ACTION
-    };
+    }E_T_ActionType;
 
-    enum class T_LookingPlace {
+    typedef enum class T_LookingPlace {
         E_LP_MSG = 0,
         E_LP_HDR,
         E_LP_BODY,
         E_LP_VAR,
         E_LP_NB_LOOKING_PLACE
-    };
+    }E_T_LookingPlace;
 
-    enum class T_Comparator {
+    typedef enum class T_Comparator {
         E_C_EQ,
         E_C_NE,
         E_C_GT,
@@ -89,14 +89,14 @@ public:
         E_C_GEQ,
         E_C_LEQ,
         E_C_NB_COMPARATOR
-    };
+    }E_T_Comparator;
 
-    enum class T_IntCmdType {
+    typedef enum class T_IntCmdType {
         E_INTCMD_INVALID = 0,
         E_INTCMD_STOPCALL,
         E_INTCMD_STOP_ALL,
         E_INTCMD_STOP_NOW
-    };
+    }E_T_IntCmdType;
 
     typedef struct _T_Action {
     } T_Action;

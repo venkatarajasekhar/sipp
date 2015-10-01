@@ -71,8 +71,15 @@ bool CAction::compare(VariableTable *variableTable)
 {
     if(variableTable){
     double lhs = variableTable->getVar(M_varInId)->getDouble();
-    double rhs = M_varIn2Id ? variableTable->getVar(M_varIn2Id)->getDouble() : M_doubleValue;
-
+    if(M_varIn2Id){
+        try{
+        variableTable->getVar(M_varIn2Id)->getDouble();
+        }catch(...){
+            
+        }
+        }else{
+           M_doubleValue; 
+        }
     switch(M_comp) {
     case E_C_EQ:
         return lhs == rhs;
@@ -90,7 +97,7 @@ bool CAction::compare(VariableTable *variableTable)
         ERROR("Internal error: Invalid comparison type %d", M_comp);
         return false; /* Shut up warning. */
     }
-}
+} //if cloesd 
 ERROR("Internal error: Invalid ptr to variableTable type %p",variableTable );
 }
 
@@ -304,7 +311,7 @@ void CAction::setStringValue (char *P_value)
     M_stringValue       = P_value;
 }
 
-void CAction::setSubVarId (int    P_value)
+void CAction::setSubVarId (int P_value)
 {
     if ( M_nbSubVarId < M_maxNbSubVarId ) {
         M_subVarId[M_nbSubVarId] = P_value;
@@ -322,7 +329,7 @@ int*  CAction::getSubVarId()
     return(M_subVarId);
 }
 
-void CAction::setNbSubVarId (int            P_value)
+void CAction::setNbSubVarId (int P_value)
 {
     M_maxNbSubVarId        = P_value;
     if(M_subVarId != NULL) {
@@ -359,7 +366,7 @@ void CAction::setLookingChar  (char*          P_value)
     }
 }
 
-void CAction::setMessage  (char*          P_value, int n)
+void CAction::setMessage  (char* P_value, int n)
 {
     if(M_message[n] != NULL) {
         delete M_message[n];
@@ -429,12 +436,18 @@ int CAction::executeRegExp(char* P_string, VariableTable *P_callVarTable)
             }catch(...){
             ERROR("Failed setSubString(), due to NULL pointer arguement!");
             }
+            try{
             L_callVar->setMatchingValue(result);
-
+            }catch(...){
+                
+            }
             if (i == getNbSubVarId())
                 break ;
-
+            try{
             L_callVar = P_callVarTable->getVar(getSubVarId(i));
+            }catch(...){
+                
+            }
         }
     }
     return(nbOfMatch);
@@ -444,7 +457,7 @@ void CAction::setSubString(char** P_target, char* P_source, int P_start, int P_s
 {
     int sizeOf;
 
-    if(P_source != NULL) {
+    if(P_source) {
         sizeOf = P_stop - P_start;
         try{
         (*P_target) = new char[sizeOf + 1];
@@ -481,14 +494,14 @@ void CAction::setPcapArgs (pcap_pkts  *  P_value)
     }
 }
 
-void CAction::setPcapArgs (char*        P_value)
+void CAction::setPcapArgs (char* P_value)
 {
-    if(M_pcapArgs != NULL) {
+    if(M_pcapArgs) {
         free(M_pcapArgs);
         M_pcapArgs = NULL;
     }
 
-    if(P_value != NULL) {
+    if(P_value ) {
         M_pcapArgs = (pcap_pkts *) malloc(sizeof(*M_pcapArgs));
         if (parse_play_args(P_value, M_pcapArgs) == -1) {
             ERROR("Play pcap error");
@@ -500,7 +513,7 @@ void CAction::setPcapArgs (char*        P_value)
 }
 #endif
 
-void CAction::setScenario(scenario *     P_scenario)
+void CAction::setScenario(scenario * P_scenario)
 {
     M_scenario = P_scenario;
 }
@@ -615,7 +628,11 @@ void CActions::afficheInfo()
     printf("Action Size = [%d]\n", M_nbAction);
     for(int i=0; i<M_nbAction; i++) {
         printf("actionlist[%d] : \n", i);
+        try{
         M_actionList[i]->afficheInfo();
+        }catch(...){
+            
+        }
     }
 }
 
@@ -635,19 +652,25 @@ int CActions::getActionSize()
 
 void CActions::setAction(CAction *P_action)
 {
-    CAction **newActions = new CAction*[M_nbAction + 1];
+    try{
+    CAction **newActions = new CAction[][M_nbAction + 1];
+    }catch(...){
+        
+    }
     if (!newActions) {
         ERROR("Could not allocate new action list.");
     }
     for (int i = 0; i < M_nbAction; i++) {
-        newActions[i] = M_actionList[i];
+        *newActions[i] = M_actionList[i];
     }
     if (M_actionList) {
         delete [] M_actionList;
     }
-    M_actionList = newActions;
-    M_actionList[M_nbAction] = P_action;
-    M_nbAction++;
+    M_actionList = *newActions;
+    /* Logic needs to be discuss */
+    
+   // M_actionList[M_nbAction] = P_action;
+      M_nbAction++;
 }
 
 CAction* CActions::getAction(int i)
